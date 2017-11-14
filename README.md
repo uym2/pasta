@@ -215,6 +215,12 @@ Note that by default PASTA picks these parameters for you, and thus you might no
      By default, PASTA removes sites that are more than 99.9% gaps. 
      You can change that using the `--mask-gappy-sites` option.
    
+   * Decomposition strategy: PASTA decomposes the tree from the previous iteration into subtrees that will define the subset alignments. There are many different decomposition strategy, can specified by ` --break-strategy`. All the decomposition strategies decompose the tree until each subtree size is below a predefined threshod (i.e. the maximum subset size). The default option is `mincluster`
+   	1. `mincluster`: decompose the tree so that the resulting number of subsets is minimized
+	2. `centroid`: recursively bisect the tree by its centroid edge
+	3. `midpoint`: recursively bisect the tree by the edge containing its midpoint
+	4. `longest`: recursively bisect the tree by its longest edge
+   
    * Maximum subset size: two options are provided to set the maximum subset size: `--max-subproblem-frac` and `--max-subproblem-size`. 
      The `--max-subproblem-frac` option is a number between 0 and 1 and sets the maximum subset size as a fraction of the entire dataset.
      The `--max-subproblem-size` option sets the maximum size as an absolute number.
