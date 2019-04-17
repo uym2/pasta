@@ -1,3 +1,5 @@
+- Version 1.9.0:
+    - Add option for a new decomposition strategy that constrains on the maximum total branch length of each subtree (instead of number of leaves)
 - Version 1.8.3:
     - **Bug fix**: an import was broken. Fixed
     - Add a new `--alignment-suffix` option
