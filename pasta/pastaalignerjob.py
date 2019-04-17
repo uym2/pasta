@@ -138,7 +138,7 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
             setattr(self, k, behavior[k])
         
         # uym2 added (April 2019)
-        self.max_subtree_brlen = self.max_subtree_brlen if self.max_subtree_brlen>0 else 200*tree.sum_brlen()/tree.n_leaves
+        self.max_subtree_brlen = self.max_subtree_brlen if self.max_subtree_brlen>0 else (float(self.max_subproblem_size)*tree.sum_brlen()/tree.n_leaves)
         #########################
             
         self.multilocus_dataset = multilocus_dataset
@@ -294,18 +294,21 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
             self.context_str = ''
         
         # uym2 modified (April 2019)
+        self._reset_jobs()
+        
         if break_constraint == 'nleaves':    
             self.expected_number_of_taxa = self.multilocus_dataset.get_num_taxa() # for debugging purposes
-            self._reset_jobs()
             prefix = "self.multilocus_dataset.get_num_taxa = %d" % self.expected_number_of_taxa
-            _LOG.debug("Comparing expected_number_of_taxa=%d and max_subproblem_size=%d\n" % (self.expected_number_of_taxa,  self.max_subproblem_size))
             n_expected = self.expected_number_of_taxa
             n_max = self.max_subproblem_size 
+            _LOG.debug("Comparing expected_number_of_taxa=%d and max_subproblem_size=%d\n" % (self.expected_number_of_taxa,  self.max_subproblem_size))
 
         elif break_constraint == 'brlen':
-            n_expected = self.tree.sum_brlen
+            self.expected_total_branch_length = self.tree.sum_brlen()
+            prefix = "self.expected_total_branch_length = %f" % self.expected_total_branch_length
+            n_expected = self.expected_total_branch_length
             n_max = self.max_subtree_brlen
-            _LOG.debug("Comparing expected_total_branch_length=%d and max_subtree_brlen=%d\n" % (n_expected,  n_max))
+            _LOG.debug("Comparing expected_total_branch_length=%f and max_subtree_brlen=%f\n" % (n_expected,  n_max))
 
         #if self.expected_number_of_taxa <= self.max_subproblem_size:
         if n_expected <= n_max:

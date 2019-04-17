@@ -39,7 +39,11 @@ class PhylogeneticTree(object):
 
 # uym2 added (April 2019): for brlen breaking constraint 
     def sum_brlen(self):
-        return self._tree.length()
+        s = 0
+        for e in self._tree.postorder_edge_iter():
+            if e.length is not None:
+                s += e.length
+        return s
 ##########################################################
 
     def count_leaves(self):
