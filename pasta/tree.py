@@ -37,6 +37,11 @@ class PhylogeneticTree(object):
 # uym2 added: for midpoint decomposition
         self._tree.annotated = False
 
+# uym2 added (April 2019): for brlen breaking constraint 
+    def sum_brlen(self):
+        return self._tree.length()
+##########################################################
+
     def count_leaves(self):
         return len(self._tree.leaf_nodes())
 

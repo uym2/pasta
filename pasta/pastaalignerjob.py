@@ -32,10 +32,10 @@ from pasta.treeholder import TreeHolder
 from pasta.scheduler import jobq, new_merge_event
 from pasta.scheduler import TickableJob
 
-from pasta.new_decomposition import midpoint_bisect, min_cluster_size_bisect
+from pasta.new_decomposition import midpoint_bisect, min_cluster_size_bisect, min_cluster_brlen_bisect
 
 # uym2 modified: add min_size option
-def bisect_tree(tree, breaking_edge_style='mincluster',min_size=0,max_size=None,max_diam=None):
+def bisect_tree(tree, breaking_edge_style='mincluster',breaking_constraint='nleaves',min_size=0,max_size=None,max_diam=None,max_brlen=None):
     """Partition 'tree' into two parts
     """
     _LOG.debug("bisecting tree...")
@@ -50,23 +50,50 @@ def bisect_tree(tree, breaking_edge_style='mincluster',min_size=0,max_size=None,
         return tree1,tree2
     ###############
 
-    # uym2: min_cluster decomposition
+    # uym2 (2019): min_cluster decomposition
     if breaking_edge_style == 'mincluster':
         _LOG.debug("breaking using min-cluster strategy")
-        t1,t2 = min_cluster_size_bisect(tree._tree,max_size)
+        
+        if breaking_constraint == 'nleaves':
+            _LOG.debug("constraining on the maximum number of leaves each subtree can have")
+            t1,t2 = min_cluster_size_bisect(tree._tree,max_size)
+        elif breaking_constraint == 'brlen':
+            _LOG.debug("constraining on the maximum sum of branch lengths each subtree can have")
+            t1,t2 = min_cluster_brlen_bisect(tree._tree,max_brlen)
+        
         tree1 = PhylogeneticTree(t1) if t1 else None
         tree2 = PhylogeneticTree(t2) if t2 else None
         return tree1,tree2
-    ###############
+    
+    if breaking_edge_style == 'centroid':
+        _LOG.debug("breaking recursively at centroid edge")        
+        e = tree.get_breaking_edge(breaking_edge_style)
+        _LOG.debug("breaking_edge length = %s, %s" % (e.length, breaking_edge_style) )
+        
+        if breaking_constraint == 'nleaves':
+            snl = tree.n_leaves
+            tree1, tree2 = tree.bipartition_by_edge(e)
+            _LOG.debug("Tree 1 has %s nodes, tree 2 has %s nodes" % (tree1.n_leaves, tree2.n_leaves) )
+            assert snl == tree1.n_leaves + tree2.n_leaves
+            return tree1, tree2
+        if breaking_constraint == 'brlen':
+            sbrlen = tree.sum_brlen() 
+            tree1, tree2 = tree.bipartition_by_edge(e)
+            _LOG.debug("Tree 1 has %s total edge length, tree 2 has %s total edge length" % (tree1.n_leaves, tree2.n_leaves) )
+            assert sbrlen == tree1.sum_brlen() + tree2.sum_brlen()
+            return tree1, tree2       
 
-    _LOG.debug("breaking by centroid")
-    e = tree.get_breaking_edge(breaking_edge_style)
-    _LOG.debug("breaking_edge length = %s, %s" % (e.length, breaking_edge_style) )
-    snl = tree.n_leaves
-    tree1, tree2 = tree.bipartition_by_edge(e)
-    _LOG.debug("Tree 1 has %s nodes, tree 2 has %s nodes" % (tree1.n_leaves, tree2.n_leaves) )
-    assert snl == tree1.n_leaves + tree2.n_leaves
-    return tree1, tree2
+    #####################################################
+
+    # blocked by uym2 (April 2019)
+    #_LOG.debug("breaking by centroid")
+    #e = tree.get_breaking_edge(breaking_edge_style)
+    #_LOG.debug("breaking_edge length = %s, %s" % (e.length, breaking_edge_style) )
+    #snl = tree.n_leaves
+    #tree1, tree2 = tree.bipartition_by_edge(e)
+    #_LOG.debug("Tree 1 has %s nodes, tree 2 has %s nodes" % (tree1.n_leaves, tree2.n_leaves) )
+    #assert snl == tree1.n_leaves + tree2.n_leaves
+    #return tree1, tree2
 
 
 class PASTAAlignerJob(TreeHolder, TickableJob):
@@ -83,7 +110,11 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
             
     """
     BEHAVIOUR_DEFAULTS = {  'break_strategy' : tuple(['mincluster']) ,
-                            'max_subproblem_size' : 50,
+                            'break_constraint': tuple(['nleaves']),
+                            #uym2 modified (April 2019): change 'max_subproblem_size=200' to be consistent with other places
+                            #'max_subproblem_size' : 50,
+                            'max_subproblem_size' : 200,
+                            'max_subtree_brlen': 0,
             			    'max_subtree_diameter': 2.5,
                             'min_subproblem_size': 0,
                             'delete_temps' : True}
@@ -105,6 +136,11 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
         behavior.update(kwargs)
         for k in list(PASTAAlignerJob.BEHAVIOUR_DEFAULTS.keys()):
             setattr(self, k, behavior[k])
+        
+        # uym2 added (April 2019)
+        self.max_subtree_brlen = self.max_subtree_brlen if self.max_subtree_brlen>0 else 200*tree.sum_brlen()/tree.n_leaves
+        #########################
+            
         self.multilocus_dataset = multilocus_dataset
         self.pasta_team = pasta_team
         self.tree = tree
@@ -228,7 +264,7 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
         return full_path_to_new_dir
 
 
-    def launch_alignment(self, tree=None, break_strategy=None, context_str=None):
+    def launch_alignment(self, tree=None, break_strategy=None, break_constraint=None, context_str=None):
         '''Puts a alignment job(s) in the queue and then return None
         
         get_results() must be called to get the alignment. Note that this call 
@@ -244,17 +280,35 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
         if break_strategy is not None:
             self.break_strategy = break_strategy
         break_strategy = self.break_strategy
+
+        # uym2 added (April 2019)
+        if break_constraint is not None:
+            self.break_constraint = break_constraint
+        break_constraint = self.break_constraint    
+
         if tree is not None:
             self.tree = tree
-        self.expected_number_of_taxa = self.multilocus_dataset.get_num_taxa() # for debugging purposes
-        self._reset_jobs()
-        prefix = "self.multilocus_dataset.get_num_taxa = %d" % self.expected_number_of_taxa
+
         self.context_str = context_str
         if self.context_str is None:
             self.context_str = ''
-        _LOG.debug("Comparing expected_number_of_taxa=%d and max_subproblem_size=%d\n" % (self.expected_number_of_taxa,  self.max_subproblem_size))
+        
+        # uym2 modified (April 2019)
+        if break_constraint == 'nleaves':    
+            self.expected_number_of_taxa = self.multilocus_dataset.get_num_taxa() # for debugging purposes
+            self._reset_jobs()
+            prefix = "self.multilocus_dataset.get_num_taxa = %d" % self.expected_number_of_taxa
+            _LOG.debug("Comparing expected_number_of_taxa=%d and max_subproblem_size=%d\n" % (self.expected_number_of_taxa,  self.max_subproblem_size))
+            n_expected = self.expected_number_of_taxa
+            n_max = self.max_subproblem_size 
 
-        if self.expected_number_of_taxa <= self.max_subproblem_size:
+        elif break_constraint == 'brlen':
+            n_expected = self.tree.sum_brlen
+            n_max = self.max_subtree_brlen
+            _LOG.debug("Comparing expected_total_branch_length=%d and max_subtree_brlen=%d\n" % (n_expected,  n_max))
+
+        #if self.expected_number_of_taxa <= self.max_subproblem_size:
+        if n_expected <= n_max:
             _LOG.debug("%s...Calling Aligner" % prefix)
             aj_list = []
             for index, single_locus_sd in enumerate(self.multilocus_dataset):
@@ -281,7 +335,7 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
                     jobq.put(aj)
         else:
             # added by uym2 on August 1st 2017
-            subjob1, subjob2 = self.bipartition_by_tree(break_strategy)
+            subjob1, subjob2 = self.bipartition_by_tree(break_strategy,break_constraint)
             if subjob1 is None or subjob2 is None:
                 return
             _LOG.debug("%s...Recursing" % prefix)
@@ -298,10 +352,11 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
             self.add_child(self.subjob1)
             self.add_child(self.subjob2)
 
-            self.subjob1.launch_alignment(break_strategy=break_strategy)
+            # uym2 modified (April 2019): add break_constraint
+            self.subjob1.launch_alignment(break_strategy=break_strategy,break_constraint=break_constraint)
             if self.killed:
                 raise RuntimeError("PastaAligner Job killed")
-            self.subjob2.launch_alignment(break_strategy=break_strategy)
+            self.subjob2.launch_alignment(break_strategy=break_strategy,break_constraint=break_constraint)
             if self.killed:
                 raise RuntimeError("PastaAligner Job killed")
 
@@ -392,11 +447,15 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
         except KeyboardInterrupt:
             self.kill()
 
-    def bipartition_by_tree(self, option):
-        _LOG.debug("tree before bipartition by %s = %s ..." % (option, self.tree.compose_newick()[0:200]))
+# uym2 modified (April 2019): add breaking_constraint option
+    #def bipartition_by_tree(self, option):
+    def bipartition_by_tree(self,break_strategy,break_constraint):
+        #_LOG.debug("tree before bipartition by %s = %s ..." % (option, self.tree.compose_newick()[0:200]))
+        _LOG.debug("tree before bipartition by %s with %s = %s ..." % (break_strategy, break_constraint, self.tree.compose_newick()[0:200]))
 
 # uym2 modified: add min_size option
-        tree1, tree2 = bisect_tree(self.tree, breaking_edge_style=option,min_size=self.min_subproblem_size,max_size=self.max_subproblem_size)
+# uym2 modified (April 2019): add max_brlen option
+        tree1, tree2 = bisect_tree(self.tree, breaking_edge_style=break_strategy, breaking_constraint=break_constraint, min_size=self.min_subproblem_size,max_size=self.max_subproblem_size,max_brlen=self.max_subtree_brlen)
         if tree1 is None or tree2 is None:
             return [None,None]
         assert tree1.n_leaves > 0

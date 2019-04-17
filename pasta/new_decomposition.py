@@ -14,6 +14,26 @@ from pasta import get_logger
 
 _LOG = get_logger(__name__)
 
+def min_cluster_brlen_bisect(a_tree,max_sum_brlen):
+    for node in a_tree.postorder_node_iter():
+        if node.is_leaf():
+            node.sum_brlen = 0
+        else:
+            node.sum_brlen = 0
+            max_child = None
+            max_sum_brlen = 0
+            for ch in node.child_node_iter():
+                   s = ch.sum_brlen + ch.edge_length
+                   node.sum_brlen += s
+                   if s > max_sum_brlen:
+                       max_sum_brlen = s
+                       max_child = ch
+        if node.sum_brlen > max_sum_brlen:
+            node.remove_child(max_child)
+            t1 = Tree(seed_node = max_child)
+            return a_tree,t1
+    return a_tree,None            
+
 def min_cluster_size_bisect(a_tree,max_size):
     for node in a_tree.postorder_node_iter():
         if node.is_leaf():
