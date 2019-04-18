@@ -83,7 +83,8 @@ def get_auto_defaults_from_summary_stats(datatype, ntax_nchar_tuple_list, total_
         'tree_estimator' : 'fasttree',
         'aligner' : 'mafft',
         'merger' : 'opal',
-        'break_strategy' : 'mincluster',
+        'break_strategy' : 'mincluster', # uym2 added
+        'break_constraint': 'nleaves', # uym2 added
         'move_to_blind_on_worse_score' : True,
         'start_tree_search_from_current' : True,
         'after_blind_iter_without_imp_limit' : -1,
@@ -93,14 +94,19 @@ def get_auto_defaults_from_summary_stats(datatype, ntax_nchar_tuple_list, total_
         'after_blind_time_without_imp_limit' : -1,
         'mask_gappy_sites' : total_num_tax / 1000 ,
         'build_MST' : False,
-        'treeshrink_filter': False
+        'treeshrink_filter': False, #uym2 added
         }
     if total_num_tax > 400:
         new_pasta_defaults['max_subproblem_size'] = 200
         new_pasta_defaults['max_subproblem_frac'] = 0
     else:
         new_pasta_defaults['max_subproblem_size'] = int(math.ceil(total_num_tax/2.0))
-        new_pasta_defaults['max_subproblem_frac'] = 0.5
+        new_pasta_defaults['max_subproblem_frac'] = 0.5    
+    
+    #uym2 added (April 2019)
+    new_pasta_defaults['max_subtree_brlen_frac'] = new_pasta_defaults['max_subproblem_size']/float(total_num_tax)
+    
+    
     if datatype.lower() == 'protein':
         new_defaults['fasttree'] = {
             'model' : '-wag -gamma -fastest',

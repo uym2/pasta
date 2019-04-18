@@ -98,7 +98,7 @@ class PastaJob (TreeHolder):
                             'move_to_blind_on_worse_score' : False,
                             'blind_mode_is_final' : True,
                             'max_subproblem_size' : 200,
-			    'max_subtree_diameter': 1.3,	
+			                'max_subtree_diameter': 1.3,	
                             'max_subproblem_frac' : 0.2,
                             'start_tree_search_from_current' : False,
                             'keep_realignment_temporaries' : False,
@@ -114,6 +114,9 @@ class PastaJob (TreeHolder):
             d[k] = getattr(self, k)
         for k in PastaJob.BEHAVIOUR_DEFAULTS.keys():
             d[k] = getattr(self, k)
+        #uym2 added (April 2019): for max_subtree_brlen
+        d['max_subtree_brlen_frac'] = (float(d['max_subproblem_size']) / self.tree.n_leaves)
+        d['max_subtree_brlen'] = d['max_subtree_brlen_frac'] * self.tree.sum_brlen()
         return d
 
     def __init__(self, multilocus_dataset, pasta_team, tree=None, name=None, **kwargs):

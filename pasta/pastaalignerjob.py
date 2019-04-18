@@ -70,19 +70,20 @@ def bisect_tree(tree, breaking_edge_style='mincluster',breaking_constraint='nlea
         e = tree.get_breaking_edge(breaking_edge_style)
         _LOG.debug("breaking_edge length = %s, %s" % (e.length, breaking_edge_style) )
         
-        if breaking_constraint == 'nleaves':
-            snl = tree.n_leaves
-            tree1, tree2 = tree.bipartition_by_edge(e)
-            _LOG.debug("Tree 1 has %s nodes, tree 2 has %s nodes" % (tree1.n_leaves, tree2.n_leaves) )
-            assert snl == tree1.n_leaves + tree2.n_leaves
-            return tree1, tree2
+        snl = tree.n_leaves
+        
         if breaking_constraint == 'brlen':
             sbrlen = tree.sum_brlen() 
-            tree1, tree2 = tree.bipartition_by_edge(e)
+        
+        tree1, tree2 = tree.bipartition_by_edge(e)
+        _LOG.debug("Tree 1 has %s nodes, tree 2 has %s nodes" % (tree1.n_leaves, tree2.n_leaves) )
+        
+        if breaking_constraint == 'brlen':
             _LOG.debug("Tree 1 has %s total edge length, tree 2 has %s total edge length" % (tree1.n_leaves, tree2.n_leaves) )
-            assert sbrlen == tree1.sum_brlen() + tree2.sum_brlen()
-            return tree1, tree2       
-
+        
+        assert snl == tree1.n_leaves + tree2.n_leaves
+        return tree1, tree2
+        
     #####################################################
 
     # blocked by uym2 (April 2019)
@@ -114,7 +115,6 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
                             #uym2 modified (April 2019): change 'max_subproblem_size=200' to be consistent with other places
                             #'max_subproblem_size' : 50,
                             'max_subproblem_size' : 200,
-                            'max_subtree_brlen': 0,
             			    'max_subtree_diameter': 2.5,
                             'min_subproblem_size': 0,
                             'delete_temps' : True}
@@ -134,11 +134,16 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
         TreeHolder.__init__(self, multilocus_dataset.dataset)
         behavior = copy.copy(PASTAAlignerJob.BEHAVIOUR_DEFAULTS)
         behavior.update(kwargs)
-        for k in list(PASTAAlignerJob.BEHAVIOUR_DEFAULTS.keys()):
+
+        #modified by uym2 (April 2019)
+        #for k in list(PASTAAlignerJob.BEHAVIOUR_DEFAULTS.keys()):
+        self.behavior_kws = list(behavior.keys()) # uym2 added (April 2019)
+        for k in behavior:
             setattr(self, k, behavior[k])
         
         # uym2 added (April 2019)
-        self.max_subtree_brlen = self.max_subtree_brlen if self.max_subtree_brlen>0 else (float(self.max_subproblem_size)*tree.sum_brlen()/tree.n_leaves)
+        #self.max_subtree_brlen_frac = self.max_subproblem_size/float(tree.n_leaves)
+        #self.max_subtree_brlen = float(self.max_subtree_brlen_frac)*tree.sum_brlen()
         #########################
             
         self.multilocus_dataset = multilocus_dataset
@@ -163,7 +168,9 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
 
     def configuration(self):
         d = {}
-        for k in list(PASTAAlignerJob.BEHAVIOUR_DEFAULTS.keys()):
+        # blocked by uym2 (April 2019)
+        #for k in list(PASTAAlignerJob.BEHAVIOUR_DEFAULTS.keys()):
+        for k in self.behavior_kws: # added by uym2 (April 2019)
             d[k] = getattr(self, k)
         return d
 
