@@ -110,12 +110,16 @@ class PastaJob (TreeHolder):
                         }
     def configuration(self):
         d = {}
-        for k in PASTAAlignerJob.BEHAVIOUR_DEFAULTS.keys():
-            d[k] = getattr(self, k)
-        for k in PastaJob.BEHAVIOUR_DEFAULTS.keys():
-            d[k] = getattr(self, k)
+        #for k in PASTAAlignerJob.BEHAVIOUR_DEFAULTS.keys():
+        #    d[k] = getattr(self, k)
+        #for k in PastaJob.BEHAVIOUR_DEFAULTS.keys():
+        #    d[k] = getattr(self, k)
+
         #uym2 added (April 2019): for max_subtree_brlen
-        d['max_subtree_brlen_frac'] = (float(d['max_subproblem_size']) / self.tree.n_leaves)
+        d['max_subtree_brlen_frac'] = (float(self.max_subproblem_size) / self.tree.n_leaves)
+
+        for k in self.behavior_kws:
+            d[k] = getattr(self,k)
         d['max_subtree_brlen'] = d['max_subtree_brlen_frac'] * self.tree.sum_brlen()
         return d
 
@@ -136,6 +140,8 @@ class PastaJob (TreeHolder):
         behavior.update(PASTAAlignerJob.BEHAVIOUR_DEFAULTS)
         behavior.update(kwargs)
         self.__dict__.update(behavior)
+
+        self.behavior_kws = list(behavior.keys())
 
         self._job_lock = Lock()
         self.multilocus_dataset = multilocus_dataset
