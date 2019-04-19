@@ -79,7 +79,7 @@ def bisect_tree(tree, breaking_edge_style='mincluster',breaking_constraint='nlea
         _LOG.debug("Tree 1 has %s nodes, tree 2 has %s nodes" % (tree1.n_leaves, tree2.n_leaves) )
         
         if breaking_constraint == 'brlen':
-            _LOG.debug("Tree 1 has %s total edge length, tree 2 has %s total edge length" % (tree1.n_leaves, tree2.n_leaves) )
+            _LOG.debug("Tree 1 has %s total edge length, tree 2 has %s total edge length" % (tree1.sum_brlen(), tree2.sum_brlen()) )
         
         assert snl == tree1.n_leaves + tree2.n_leaves
         return tree1, tree2
@@ -470,10 +470,10 @@ class PASTAAlignerJob(TreeHolder, TickableJob):
             return [None,None]
         assert tree1.n_leaves > 0
         assert tree2.n_leaves > 0
-        assert tree1.n_leaves + tree2.n_leaves == self.tree.n_leaves
-
+        _LOG.debug("Tree 1 has %d leaves, tree 2 has %d leaves", tree1.n_leaves, tree2.n_leaves)
         _LOG.debug("tree1 = %s ..." % tree1.compose_newick() [0:200])
         _LOG.debug("tree2 = %s ..." % tree2.compose_newick() [0:200])
+        assert tree1.n_leaves + tree2.n_leaves == self.tree.n_leaves
 
         multilocus_dataset1 = self.multilocus_dataset.sub_alignment(tree1.leaf_node_names())
         multilocus_dataset2 = self.multilocus_dataset.sub_alignment(tree2.leaf_node_names())

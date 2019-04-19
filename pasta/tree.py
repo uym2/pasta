@@ -178,6 +178,10 @@ class PhylogeneticTree(object):
             while old_root.parent_node:
                 old_root = old_root.parent_node
 
+        # uym2 added (April 2019): suppress unifurcation at root node
+        if len(old_root.child_nodes()) == 1:
+            old_root = old_root.child_nodes()[0]
+
         t2 = PhylogeneticTree(Tree(seed_node=old_root))
 
         is_valid_tree(t1._tree)

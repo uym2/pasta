@@ -31,6 +31,22 @@ def min_cluster_brlen_bisect(a_tree,max_sum_branches):
         if node.sum_brlen > max_sum_branches:
             node.remove_child(max_child)
             t1 = Tree(seed_node = max_child)
+            # adjust the remaining tree after cutting out
+            children = node.child_nodes()
+            if len(children) == 1:
+                ch = children[0]
+                if node is a_tree.seed_node:
+                    node.remove_child(ch)
+                    a_tree.seed_node = ch
+                    del node
+                else:
+                    e = ch.edge_length + node.edge_length
+                    p = node.parent_node
+                    node = p.remove_child(node)    
+                    node.remove_child(ch)
+                    p.add_child(ch)
+                    ch.edge_length = e
+
             return a_tree,t1
     return a_tree,None            
 

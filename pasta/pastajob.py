@@ -98,8 +98,11 @@ class PastaJob (TreeHolder):
                             'move_to_blind_on_worse_score' : False,
                             'blind_mode_is_final' : True,
                             'max_subproblem_size' : 200,
+                            'expected_subproblem_size' : 200,
 			                'max_subtree_diameter': 1.3,	
-                            'max_subproblem_frac' : 0.2,
+                            'max_subproblem_frac' : 0.0,
+                            'max_subtree_brlen_frac': 0.0,
+                            'max_subtree_brlen': 0.0,
                             'start_tree_search_from_current' : False,
                             'keep_realignment_temporaries' : False,
                             'keep_iteration_temporaries' : False,
@@ -116,11 +119,14 @@ class PastaJob (TreeHolder):
         #    d[k] = getattr(self, k)
 
         #uym2 added (April 2019): for max_subtree_brlen
-        d['max_subtree_brlen_frac'] = (float(self.max_subproblem_size) / self.tree.n_leaves)
 
         for k in self.behavior_kws:
             d[k] = getattr(self,k)
-        d['max_subtree_brlen'] = d['max_subtree_brlen_frac'] * self.tree.sum_brlen()
+        
+        #if d['max_subtree_brlen_frac'] == 0 or d['max_subtree_brlen_frac'] > (float(self.expected_subproblem_size) / self.tree.n_leaves):
+        #    d['max_subtree_brlen_frac'] = float(self.expected_subproblem_size) / self.tree.n_leaves
+        #if d['max_subtree_brlen'] == 0 or d['max_subtree_brlen'] > d['max_subtree_brlen_frac'] * self.tree.sum_brlen()):    
+        #    d['max_subtree_brlen'] = d['max_subtree_brlen_frac'] * self.tree.sum_brlen())
         return d
 
     def __init__(self, multilocus_dataset, pasta_team, tree=None, name=None, **kwargs):
@@ -468,14 +474,30 @@ class PastaJob (TreeHolder):
         num_non_update_iter = 0
 
         configuration = self.configuration()
+        # uym2 added (April 2019):  If both the 2 parameters
+        # max_subtree_brlen, max_subtree_brlen_frac are specified,
+        # choose the more stringent one (induce smaller subtree branch length) 
+        induced_max_brlen_frac = self.expected_subproblem_size/float(self.tree.n_leaves)
+        if self.max_subtree_brlen_frac == 0 or self.max_subtree_brlen_frac > induced_max_brlen_frac:
+            configuration['max_subtree_brlen_frac'] = induced_max_brlen_frac
+        induced_max_brlen = configuration['max_subtree_brlen_frac']*self.tree.sum_brlen()   
+        if self.max_subtree_brlen == 0 or self.max_subtree_brlen > induced_max_brlen:
+            configuration['max_subtree_brlen'] = induced_max_brlen
+
+        if configuration['break_constraint'] == 'brlen':
+            MESSENGER.send_info('Max subtree branch length set to {0}'.format(configuration['max_subtree_brlen']))
+            
         # Here we check if the max_subproblem_frac is more stringent than max_subproblem_size
-        frac_max = int(math.ceil(self.max_subproblem_frac*self.tree.n_leaves))
-        if frac_max > self.max_subproblem_size:
-            configuration['max_subproblem_size'] = frac_max
-        MESSENGER.send_info('Max subproblem set to {0}'.format(
+        if self.max_subproblem_frac > 0: # uym2 added (April 2019)
+            frac_max = int(math.ceil(self.max_subproblem_frac*self.tree.n_leaves))
+            # if frac_max > self.max_subproblem_size:
+            if frac_max < self.max_subproblem_size: # uym2 modified: choose the stricter value
+                configuration['max_subproblem_size'] = frac_max
+        if configuration['break_constraint'] == 'nleaves':
+            MESSENGER.send_info('Max subproblem set to {0}'.format(
                 configuration['max_subproblem_size']))
-        if configuration['max_subproblem_size'] >= self.tree.n_leaves:
-            MESSENGER.send_warning('''\n
+            if configuration['max_subproblem_size'] >= self.tree.n_leaves:
+                MESSENGER.send_warning('''\n
 WARNING: you have specified a max subproblem ({0}) that is equal to or greater
     than the number of taxa ({0}). Thus, the PASTA algorithm will not be invoked
     under the current configuration (i.e., no tree decomposition will occur).
@@ -485,9 +507,9 @@ WARNING: you have specified a max subproblem ({0}) that is equal to or greater
     the specified aligner tool *without* any decomposition, you can ignore this
     message.\n'''.format(configuration['max_subproblem_size'],
                        self.tree.n_leaves))
-        if configuration['max_subproblem_size'] == 1:
-             MESSENGER.send_error(''' You have specified a max subproblem size of 1. PASTA requires a max subproblem size of at least 2.  ''')
-             sys.exit(1)
+            if configuration['max_subproblem_size'] == 1:
+                MESSENGER.send_error(''' You have specified a max subproblem size of 1. PASTA requires a max subproblem size of at least 2.  ''')
+                sys.exit(1)
 
         delete_iteration_temps = not self.keep_iteration_temporaries
         delete_realignment_temps = delete_iteration_temps or (not self.keep_realignment_temporaries)
@@ -513,7 +535,7 @@ WARNING: you have specified a max subproblem ({0}) that is equal to or greater
                 curr_tmp_dir_par = self.pasta_team.temp_fs.create_subdir(curr_tmp_dir_par)
                 record_timestamp(os.path.join(curr_tmp_dir_par, 'start_align_timestamp.txt'))
                 # Align (with decomposition...)
-                self.status('Step %d. Realigning with decomposition strategy set to %s' % (self.current_iteration, break_strategy))
+                self.status('Step %d. Realigning with decomposition strategy %s and constrain on %s' % (self.current_iteration, break_strategy, self.break_constraint))
                 if self.killed:
                     raise RuntimeError("PASTA Job killed")
                 tree_for_aligner = self.get_tree_copy()

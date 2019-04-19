@@ -99,12 +99,14 @@ def get_auto_defaults_from_summary_stats(datatype, ntax_nchar_tuple_list, total_
     if total_num_tax > 400:
         new_pasta_defaults['max_subproblem_size'] = 200
         new_pasta_defaults['max_subproblem_frac'] = 0
+        new_pasta_defaults['expected_subproblem_size'] = 200
     else:
         new_pasta_defaults['max_subproblem_size'] = int(math.ceil(total_num_tax/2.0))
-        new_pasta_defaults['max_subproblem_frac'] = 0.5    
+        new_pasta_defaults['expected_subproblem_size'] = int(math.ceil(total_num_tax/2.0))
+        new_pasta_defaults['max_subproblem_frac'] = 0.0  
     
     #uym2 added (April 2019)
-    new_pasta_defaults['max_subtree_brlen_frac'] = new_pasta_defaults['max_subproblem_size']/float(total_num_tax)
+    new_pasta_defaults['max_subtree_brlen_frac'] = new_pasta_defaults['expected_subproblem_size']/float(total_num_tax)
     
     
     if datatype.lower() == 'protein':
